@@ -15,6 +15,7 @@ import uuid
 import datetime
 from app.utils.permissions import check_memory_access_permissions
 from qdrant_client import models as qdrant_models
+from langchain_openai import OpenAIEmbeddings,ChatOpenAI
 
 # Load environment variables
 load_dotenv()
@@ -23,10 +24,46 @@ load_dotenv()
 mcp = FastMCP("mem0-mcp-server")
 
 # Check if OpenAI API key is set
-if not os.getenv("OPENAI_API_KEY"):
-    raise Exception("OPENAI_API_KEY is not set in .env file")
+# if not os.getenv("OPENAI_API_KEY"):
+#     raise Exception("OPENAI_API_KEY is not set in .env file")
+openai_embeddings = OpenAIEmbeddings(
+    model=os.getenv("OPENAI_EMBEDDINGS_MODEL"),
+    openai_api_base=os.getenv("OPENAI_API_BASE"),
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    dimensions=int(os.getenv("OPENAI_EMBEDDINGS_DIMENSIONS", "1024"))
+)
 
-memory_client = get_memory_client()
+openai_llm = ChatOpenAI(
+    base_url=os.getenv("OPENAI_API_BASE"),  
+    api_key=os.getenv("OPENAI_API_KEY"),                  
+    model=os.getenv("OPENAI_LLM_MODEL")  
+)
+
+config = {
+   "llm": {
+       "provider": "langchain",
+       "config": {
+           "model": openai_llm,
+       }
+   },
+    "embedder": {
+        "provider": "langchain",
+        "config": {
+            "model": openai_embeddings
+        }
+    },
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {
+            "collection_name": "openmemory",
+            "host": "mem0_store",
+            "port": 6333,
+            "embedding_model_dims":1024
+        }
+    },
+}
+
+memory_client = get_memory_client(config_dict = config)
 
 # Context variables for user_id and client_name
 user_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("user_id")
